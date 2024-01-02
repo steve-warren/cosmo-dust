@@ -97,4 +97,10 @@ public sealed class EntityEntry
             ShadowProperties = ShadowPropertyProvider.EmptyShadowProperties;
         }
     }
+
+    public IEnumerable<object> GetDomainEvents() =>
+        DomainEventAccessor.GetDomainEvents(Entity);
+
+    public string NextDomainEventId() =>
+        DomainEventAccessor.NextId();
 }

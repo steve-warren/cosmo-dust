@@ -43,7 +43,10 @@ public sealed class SqlParameterObjectTypeResolver
 
     private static ReadOnlyDictionary<string, Func<object, object?>> BuildPropertyGetterLambdas(Type type)
     {
-        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var properties = type
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.CanRead);
+
         var getters = new Dictionary<string, Func<object, object?>>();
 
         foreach (var property in properties)

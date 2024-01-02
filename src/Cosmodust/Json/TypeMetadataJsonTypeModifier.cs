@@ -6,7 +6,6 @@ namespace Cosmodust.Json;
 public sealed class TypeMetadataJsonTypeModifier : IJsonTypeModifier
 {
     private readonly EntityConfigurationProvider _entityConfigurationProvider;
-    private static readonly Func<object, object?> s_typeFunc = obj => obj.GetType().Name;
 
     public TypeMetadataJsonTypeModifier(EntityConfigurationProvider entityConfigurationProvider)
     {
@@ -22,8 +21,10 @@ public sealed class TypeMetadataJsonTypeModifier : IJsonTypeModifier
             return;
 
         var jsonPropertyInfo = jsonTypeInfo.CreateJsonPropertyInfo(typeof(string), "_type");
-        jsonPropertyInfo.Get = s_typeFunc;
+        jsonPropertyInfo.Get = GetTypeName;
 
         jsonTypeInfo.Properties.Add(jsonPropertyInfo);
     }
+
+    private static object GetTypeName(object obj) => obj.GetType().Name;
 }

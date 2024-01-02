@@ -68,11 +68,11 @@ public class QueryFacade
             _jsonModifiers.Add("_attachments", JsonModifierType.SkipProperty);
             _jsonModifiers.Add("_ts", JsonModifierType.SkipProperty);
         }
-        
+
         _jsonModifiers.Add("_etag", options.IncludeETag 
             ? JsonModifierType.EscapeStringValue 
             : JsonModifierType.SkipProperty);
-        
+
         _jsonWriterOptions = new JsonWriterOptions
         {
             Indented = options.IndentJsonOutput,
@@ -80,53 +80,116 @@ public class QueryFacade
         };
     }
 
-    public async ValueTask ExecuteQueryAsync(
+    /// <summary>
+    /// Executes a Cosmos DB query asynchronously without a partition key and writes the result to the specified <paramref name="pipeWriter"/>.
+    /// </summary>
+    /// <param name="pipeWriter">The <see cref="PipeWriter"/> to write the query result to.</param>
+    /// <param name="containerName">The name of the container in which the query should be executed.</param>
+    /// <param name="sql">The SQL query string to execute.</param>
+    /// <param name="parameters">Additional parameters to pass to the SQL query (optional).</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous query execution operation.</returns>
+    public ValueTask ExecuteQueryAsync(
         PipeWriter pipeWriter,
         string containerName,
         string sql,
-        object? parameters = default,
-        string? partitionKey = default)
+        object? parameters = default) =>
+        ExecuteQueryAsync(
+            pipeWriter,
+            containerName,
+            sql,
+            PartitionKey.None,
+            parameters);
+
+    /// <summary>
+    /// Executes a SQL query asynchronously and writes the result to the given <paramref name="pipeWriter"/>.
+    /// </summary>
+    /// <param name="pipeWriter">The <see cref="PipeWriter"/> to write the result to.</param>
+    /// <param name="containerName">The name of the container.</param>
+    /// <param name="sql">The SQL query to execute.</param>
+    /// <param name="partitionKey">The partition key value. Can be null.</param>
+    /// <param name="parameters">Optional parameters for the query.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    public ValueTask ExecuteQueryAsync(
+        PipeWriter pipeWriter,
+        string containerName,
+        string sql,
+        string? partitionKey,
+        object? parameters = default) =>
+        ExecuteQueryAsync(
+            pipeWriter,
+            containerName,
+            sql,
+            new PartitionKey(partitionKey),
+            parameters);
+
+    private async ValueTask ExecuteQueryAsync(
+        PipeWriter pipeWriter,
+        string containerName,
+        string sql,
+        PartitionKey? partitionKey,
+        object? parameters = default)
     {
         var container = _database.GetContainer(containerName);
-        var query = BuildSqlQueryDefinition(sql, parameters);
+        var query = BuildQueryDefinition(sql, parameters);
 
-        using var feed = container.GetItemQueryStreamIterator(query,
-            requestOptions: new QueryRequestOptions
-            {
-                PartitionKey = partitionKey is null ? null : new PartitionKey(partitionKey)
-            });
+        var requestOptions = new QueryRequestOptions
+        {
+            PartitionKey = partitionKey,
+            MaxConcurrency = -1,
+            MaxItemCount = -1,
+            MaxBufferedItemCount = -1
+        };
 
+        using var feed = container.GetItemQueryStreamIterator(query, requestOptions: requestOptions);
+
+        await using var writer = new Utf8JsonWriter(pipeWriter, _jsonWriterOptions);
+
+        await WriteJsonAsync(feed, writer).ConfigureAwait(false);
+    }
+
+    private async Task WriteJsonAsync(
+        FeedIterator feed,
+        Utf8JsonWriter writer)
+    {
+        Task<ResponseMessage> readNextTask = feed.ReadNextAsync();
         var flushTask = Task.CompletedTask;
 
-        try
+        while (true)
         {
-            await using var writer = new Utf8JsonWriter(pipeWriter, _jsonWriterOptions);
+            var completedTask = await Task.WhenAny(readNextTask, flushTask).ConfigureAwait(false);
 
-            while (feed.HasMoreResults)
+            if (completedTask == readNextTask)
             {
-                var readNextTask = feed.ReadNextAsync();
-
+                // ensure previous flush operation is completed before TransformJson
                 await flushTask.ConfigureAwait(false);
 
                 using var response = await readNextTask.ConfigureAwait(false);
                 using var stream = response.Content as MemoryStream;
 
-                Debug.Assert(stream is not null);
-                
+                Debug.Assert(stream != null);
+
+                // transform json and start flushing
                 TransformJson(_jsonModifiers, _propertyRename, stream, _readerOptions, writer);
-
                 flushTask = writer.FlushAsync();
-            }
-        }
 
-        finally
-        {
-            if (!flushTask.IsCompleted)
+                // start next read operation
+                if (feed.HasMoreResults)
+                    readNextTask = feed.ReadNextAsync();
+
+                else
+                    break;
+            }
+
+            // complete FlushAsync task
+            else if (completedTask == flushTask)
                 await flushTask.ConfigureAwait(false);
         }
+
+        // ensure the last flush operation is completed
+        await flushTask.ConfigureAwait(false);
     }
 
-    private QueryDefinition BuildSqlQueryDefinition(string sql, object? parameters)
+    private QueryDefinition BuildQueryDefinition(string sql, object? parameters)
     {
         var query = new QueryDefinition(sql);
 
@@ -143,7 +206,8 @@ public class QueryFacade
         JsonReaderOptions jsonReaderOptions,
         Utf8JsonWriter writer)
     {
-        var reader = new Utf8JsonReader(stream.GetBuffer().AsSpan(0, (int) stream.Length), jsonReaderOptions);
+        var jsonData = new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int) stream.Length);
+        var reader = new Utf8JsonReader(jsonData, jsonReaderOptions);
 
         while (reader.Read())
         {
@@ -173,7 +237,7 @@ public class QueryFacade
                         default:
                             throw new JsonException("Unable to modify property.");
                     }
-                    
+
                     continue;
 
                 case JsonTokenType.StartObject:

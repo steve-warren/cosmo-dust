@@ -10,9 +10,9 @@ namespace Cosmodust.Extensions;
 
 public class CosmodustJsonOptions
 {
-    private readonly HashSet<JsonConverter> _jsonConverters = new();
+    private readonly HashSet<JsonConverter> _jsonConverters = [];
     private readonly Lazy<PolymorphicDerivedTypeModifier> _polymorphicDerivedTypeModifier = new();
-    private readonly HashSet<IJsonTypeModifier> _jsonTypeModifiers = new();
+    private readonly HashSet<IJsonTypeModifier> _jsonTypeModifiers = [];
     private readonly JsonNamingPolicy _jsonNamingPolicy = JsonNamingPolicy.CamelCase;
 
     public CosmodustJsonOptions(

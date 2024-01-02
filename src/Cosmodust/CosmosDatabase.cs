@@ -172,12 +172,11 @@ public sealed class CosmosDatabase : IDatabase
             Debug.WriteLine(
                 $"AddOrUpdate operation HTTP {response.StatusCode} - {response.Cost} RUs");
 
-            foreach(var domainEvent in
-                    entry.DomainEventAccessor.GetDomainEvents(entry.Entity))
+            foreach(var domainEvent in entry.GetDomainEvents())
             {
-                var eventEntry = new Dictionary<string, object>
+                var domainEventMetadata = new Dictionary<string, object>
                 {
-                    { "id", entry.DomainEventAccessor.NextId() },
+                    { "id", entry.NextDomainEventId() },
                     { entry.PartitionKeyName, entry.PartitionKey },
                     { "domainEvent", domainEvent }
                 };
@@ -186,7 +185,7 @@ public sealed class CosmosDatabase : IDatabase
 
                 var createItemOperation = new CreateItemOperation(
                     container,
-                    eventEntry,
+                    domainEventMetadata,
                     entry.PartitionKey);
 
                 response = await createItemOperation
