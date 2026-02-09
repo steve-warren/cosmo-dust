@@ -48,8 +48,7 @@ internal class ReplaceDocumentOperation : IDocumentWriteOperation
         {
             return new OperationResult
             {
-                EntityType = _entity.GetType(),
-                Entity = _entity,
+                Entry = null,
                 StatusCode = ex.StatusCode,
                 Cost = ex.RequestCharge,
                 ETag = ex.Headers.ETag

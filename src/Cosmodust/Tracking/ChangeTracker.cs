@@ -140,13 +140,15 @@ public sealed class ChangeTracker : IDisposable
     {
         entry.ClearDomainEvents();
 
-        if (entry.State is EntityState.Added or EntityState.Modified)
-            entry.Unchange();
-
-        else if (entry.State == EntityState.Removed)
+        switch (entry.State)
         {
-            _entries.Remove(entry);
-            _entityByTypeId.Remove((Type: entry.EntityType, entry.Id));
+            case EntityState.Added or EntityState.Modified:
+                entry.Unchange();
+                break;
+            case EntityState.Removed:
+                _entries.Remove(entry);
+                _entityByTypeId.Remove((Type: entry.EntityType, entry.Id));
+                break;
         }
     }
 

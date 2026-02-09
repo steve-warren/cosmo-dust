@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Cosmodust.Linq;
 using Cosmodust.Operations;
 using Cosmodust.Query;
@@ -12,11 +11,17 @@ namespace Cosmodust.Session;
 public sealed class DocumentSession : IDocumentSession, IDisposable
 {
     internal DocumentSession(
+        Guid id,
         IDatabase database,
         EntityConfigurationProvider entityConfiguration,
         SqlParameterObjectTypeResolver sqlParameterObjectTypeResolver,
         ShadowPropertyProvider shadowPropertyProvider)
     {
+        Ensure.NotNull(database);
+        Ensure.NotNull(entityConfiguration);
+        Ensure.NotNull(sqlParameterObjectTypeResolver);
+
+        Id = id;
         Database = database;
         EntityConfiguration = entityConfiguration;
         SqlParameterObjectTypeResolver = sqlParameterObjectTypeResolver;
@@ -24,10 +29,8 @@ public sealed class DocumentSession : IDocumentSession, IDisposable
             entityConfiguration,
             shadowPropertyProvider);
 
-        Id = Guid.NewGuid();
     }
 
-    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public Guid Id { get; }
     public ChangeTracker ChangeTracker { get; }
     public IDatabase Database { get; }
@@ -143,8 +146,9 @@ public sealed class DocumentSession : IDocumentSession, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<IDocumentOperationResult> CommitAsync(CancellationToken cancellationToken = default)
+    public async Task<DocumentOperationResult> CommitAsync(CancellationToken cancellationToken = default)
     {
+        var documentOperationResults = new List<IDocumentOperationResult>();
         var pendingChanges = ChangeTracker.PendingChanges.ToArray();
 
         if (pendingChanges.Length == 1)
@@ -155,27 +159,38 @@ public sealed class DocumentSession : IDocumentSession, IDisposable
 
             ChangeTracker.Commit(pendingChanges[0]);
             
-            return DocumentOperationResultFactory.Create(result);
-        }
-        
-        foreach (var entry in pendingChanges)
-        {
-            var result = await Database.CommitAsync(entry, cancellationToken).ConfigureAwait(false);
-            ChangeTracker.Commit(entry);
+            documentOperationResults.Add(DocumentOperationResultFactory.Create(result));
         }
 
-        return new SuccessDocumentOperationResult();
+        else
+        {
+            foreach (var entry in pendingChanges)
+            {
+                var result = await Database.CommitAsync(entry, cancellationToken).ConfigureAwait(false);
+                ChangeTracker.Commit(entry);
+
+                var documentOperationResult = DocumentOperationResultFactory.Create(result);
+            
+                documentOperationResults.Add(documentOperationResult);
+            }   
+        }
+
+        return new DocumentOperationResult(documentOperationResults);
     }
 
     /// <inheritdoc />
-    public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+    public async Task<DocumentOperationResult> CommitTransactionAsync(CancellationToken cancellationToken = default)
     {
-        var pendingChanges = ChangeTracker.PendingChanges.ToArray();
-
-        await Database.CommitTransactionAsync(pendingChanges, cancellationToken).ConfigureAwait(false);
+        var operationResults = await Database.
+            CommitTransactionAsync(
+                ChangeTracker.PendingChanges,
+                cancellationToken)
+            .ConfigureAwait(false);
         
-        foreach(var entry in pendingChanges)
-            ChangeTracker.Commit(entry);
+        foreach(var result in operationResults)
+            ChangeTracker.Commit(result.Entry);
+
+        return new DocumentOperationResult([]);
     }
 
     public EntityEntry Entity(object entity) =>

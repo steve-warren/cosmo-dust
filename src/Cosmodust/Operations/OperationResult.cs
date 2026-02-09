@@ -1,12 +1,12 @@
 using System.Net;
+using Cosmodust.Tracking;
 
 namespace Cosmodust.Operations;
 
-public record OperationResult
+public record struct OperationResult
 {
-    public required Type EntityType { get; init; }
-    public required object? Entity { get; init; }
+    public required EntityEntry Entry { get; init; }
     public required HttpStatusCode StatusCode { get; init; }
-    public string? ETag { get; set; }
+    public string? ETag { get; init; }
     public double Cost { get; init; }
 }

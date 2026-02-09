@@ -1,5 +1,4 @@
-using System.Diagnostics;
-using Cosmodust.Json;
+using Cosmodust.Shared;
 using Cosmodust.Tracking;
 using Microsoft.Azure.Cosmos;
 
@@ -14,39 +13,40 @@ public class TransactionalBatchOperation
         Database database,
         IEnumerable<EntityEntry> entries)
     {
+        Ensure.NotNull(database);
+        Ensure.NotNull(entries);
+
         _database = database;
         _entries = entries;
     }
 
-    public async Task<IReadOnlyList<TransactionalBatchResponse>> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<List<OperationResult>> ExecuteAsync(CancellationToken cancellationToken = default)
     {
         var containerAndPartitionKey = _entries
             .GroupBy(e => (e.ContainerName, e.PartitionKey));
 
-        var responses = new List<TransactionalBatchResponse>();
+        var results = new List<OperationResult>();
 
         foreach (var entriesGrouping in containerAndPartitionKey)
-        {
-            var response = await ExecuteTransactionalBatchAsync(
-                containerName: entriesGrouping.Key.ContainerName,
-                partitionKey: entriesGrouping.Key.PartitionKey,
-                entries: entriesGrouping,
-                cancellationToken: cancellationToken);
+            await ExecuteTransactionalBatchAsync(
+                    containerName: entriesGrouping.Key.ContainerName,
+                    partitionKey: entriesGrouping.Key.PartitionKey,
+                    entries: entriesGrouping,
+                    results: results,
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
 
-            responses.Add(response);
-        }
-
-        return responses;
+        return results;
     }
 
-    private async Task<TransactionalBatchResponse> ExecuteTransactionalBatchAsync(
+    private async Task ExecuteTransactionalBatchAsync(
         string containerName,
         string partitionKey,
         IEnumerable<EntityEntry> entries,
+        List<OperationResult> results,
         CancellationToken cancellationToken = default)
     {
         var container = _database.GetContainer(containerName);
-
         var batch = container.CreateTransactionalBatch(new PartitionKey(partitionKey));
 
         var entityEntries = entries.ToList();
@@ -92,19 +92,19 @@ public class TransactionalBatchOperation
         foreach (var eventEntry in domainEvents)
             batch.CreateItem(eventEntry, createBatchOptions);
 
-        var batchResponse = await batch
+        var response = await batch
             .ExecuteAsync(cancellationToken)
             .ConfigureAwait(false);
-
+        
         for(var i = 0; i < entityEntries.Count; i ++)
         {
+            var itemResponse = response[i];
+            
             var entry = entityEntries[i];
-            var itemResponse = batchResponse[i];
-
             entry.PullShadowPropertiesFromSerializer();
             entry.UpdateETag(itemResponse.ETag);
+            
+            results.Add(itemResponse.ToOperationResult(entry));
         }
-
-        return batchResponse;
     }
 }

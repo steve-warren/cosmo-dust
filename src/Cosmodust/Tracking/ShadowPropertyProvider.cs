@@ -44,7 +44,7 @@ public sealed class ShadowPropertyProvider : IDisposable
     /// </summary>
     /// <param name="entity">The entity to remove from the cache.</param>
     /// <returns>The JSON properties associated with the entity, or null if none were found.</returns>
-    public IDictionary<string, object?>? RemoveAll(object entity)
+    public IDictionary<string, object?>? RemoveShadowPropertiesForEntity(object entity)
     {
         _store.TryRemove(entity, out var properties);
 

@@ -72,7 +72,7 @@ public sealed class EntityEntry
     public void PullShadowPropertiesFromSerializer()
     {
         Debug.Assert(Entity != null);
-        ShadowProperties = Provider.RemoveAll(Entity) ?? ShadowProperties;
+        ShadowProperties = Provider.RemoveShadowPropertiesForEntity(Entity) ?? ShadowProperties;
         Debug.WriteLine($"Retrieved entity '{Id}' from the shadow property provider.");
     }
 

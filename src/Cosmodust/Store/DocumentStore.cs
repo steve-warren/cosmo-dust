@@ -33,6 +33,7 @@ public class DocumentStore : IDocumentStore
     public DocumentSession CreateSession()
     {
         return new DocumentSession(
+            id: Guid.NewGuid(),
             _database,
             _entityConfiguration,
             _sqlParameterObjectTypeResolver,

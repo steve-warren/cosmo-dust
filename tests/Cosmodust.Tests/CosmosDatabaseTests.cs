@@ -265,20 +265,17 @@ public class CosmosDatabaseTests : IClassFixture<CosmosTextFixture>
         writeSession.Store(entity);
         await writeSession.CommitAsync();
 
-        var writeSessionEntry = writeSession.Entity(entity);
-
         // attach entity to separate session with etag
         var attachSession = _store.CreateSession();
         attachSession.Attach(
             entity,
             eTag: "000");
         
-        var attachSessionEntry = attachSession.Entity(entity);
         attachSession.Update(entity);
 
         var result = await attachSession.CommitAsync();
 
-        result.Should()
+        result.Results[0].Should()
             .BeOfType<ConcurrencyConflictDocumentOperationResult>(because: "concurrency conflict should be detected.");
     }
 

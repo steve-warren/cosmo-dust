@@ -27,7 +27,7 @@ public interface IDatabase
     Task<OperationResult> CommitAsync(
         EntityEntry entry,
         CancellationToken cancellationToken = default);
-    Task CommitTransactionAsync(
+    Task<List<OperationResult>> CommitTransactionAsync(
         IEnumerable<EntityEntry> entries,
         CancellationToken cancellationToken = default);
     IQueryable<TEntity> CreateLinqQuery<TEntity>(string containerName);

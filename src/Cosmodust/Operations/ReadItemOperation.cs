@@ -42,8 +42,7 @@ internal class ReadItemOperation<TEntity>
         {
             return new OperationResult
             {
-                EntityType = typeof(TEntity?),
-                Entity = default,
+                Entry = null,
                 StatusCode = ex.StatusCode
             };
         }

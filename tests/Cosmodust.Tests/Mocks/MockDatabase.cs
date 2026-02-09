@@ -55,7 +55,7 @@ public sealed class MockDatabase : IDatabase
         });
     }
 
-    public Task CommitTransactionAsync(IEnumerable<EntityEntry> entries, CancellationToken cancellationToken = default)
+    public Task<List<OperationResult>> CommitTransactionAsync(IEnumerable<EntityEntry> entries, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }

@@ -1,3 +1,4 @@
+using Cosmodust.Tracking;
 using Microsoft.Azure.Cosmos;
 
 namespace Cosmodust.Operations;
@@ -9,10 +10,21 @@ internal static class OperationExtensions
     {
         return new OperationResult
         {
-            EntityType = typeof(TEntity),
-            Entity = response.Resource,
+            Entry = null,
             StatusCode = response.StatusCode,
             Cost = response.RequestCharge,
+            ETag = response.ETag
+        };
+    }
+
+    public static OperationResult ToOperationResult(
+        this TransactionalBatchOperationResult response,
+        EntityEntry entry)
+    {
+        return new OperationResult
+        {
+            Entry = entry,
+            StatusCode = response.StatusCode,
             ETag = response.ETag
         };
     }

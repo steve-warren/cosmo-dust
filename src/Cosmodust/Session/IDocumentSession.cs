@@ -72,10 +72,10 @@ public interface IDocumentSession
     /// Commits all pending changes made in the session to the database.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    Task<IDocumentOperationResult> CommitAsync(CancellationToken cancellationToken = default);
+    Task<DocumentOperationResult> CommitAsync(CancellationToken cancellationToken = default);
     /// <summary>
     /// Commits the pending changes in the current transaction to the database.
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> to observe while waiting for the task to complete.</param>
-    Task CommitTransactionAsync(CancellationToken cancellationToken = default);
+    Task<DocumentOperationResult> CommitTransactionAsync(CancellationToken cancellationToken = default);
 }

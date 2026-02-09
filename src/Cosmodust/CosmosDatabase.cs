@@ -1,10 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Cosmodust.Extensions;
-using Cosmodust.Json;
 using Cosmodust.Linq;
 using Cosmodust.Operations;
-using Cosmodust.Query;
 using Cosmodust.Shared;
 using Cosmodust.Tracking;
 using Microsoft.Azure.Cosmos;
@@ -215,7 +213,7 @@ public sealed class CosmosDatabase : IDatabase
             $"AddOrUpdate operation HTTP {response.StatusCode} - {response.Cost} RUs");
     }
 
-    public async Task CommitTransactionAsync(
+    public async Task<List<OperationResult>> CommitTransactionAsync(
         IEnumerable<EntityEntry> entries,
         CancellationToken cancellationToken)
     {
@@ -225,8 +223,10 @@ public sealed class CosmosDatabase : IDatabase
             database: _database,
             entries: entries);
 
-        await batchOperation.ExecuteAsync(cancellationToken)
+        var results = await batchOperation.ExecuteAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        return results;
     }
 
     private IDocumentWriteOperation CreateWriteOperation(EntityEntry entry)
